@@ -18,6 +18,8 @@ Järjestäminen deadline-päivän mukaan
 
 Reaktiivinen UI (LazyColumn)
 
+Pop-up ikkuna taskien editointiin ja poistamiseen
+
 
 
 Arkkitehtuuri
