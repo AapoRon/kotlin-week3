@@ -1,34 +1,63 @@
 package com.example.viikko1
 
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import com.example.viikko1.domain.Task
 import com.example.viikko1.domain.mockTasks
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.time.LocalDate
 
 class TaskViewModel : ViewModel() {
 
-    // 🔹 kaikki taskit (source of truth)
-    private val allTasks = mutableStateOf(mockTasks)
+    // Source of truth
+    private val _allTasks = MutableStateFlow<List<Task>>(mockTasks)
 
-    // 🔹 UI-tila
-    var tasks = mutableStateOf(listOf<Task>())
-        private set
+    // UI: näytettävä lista (voi olla filtteroitu/sortattu)
+    private val _tasks = MutableStateFlow<List<Task>>(mockTasks)
+    val tasks: StateFlow<List<Task>> = _tasks.asStateFlow()
 
     private var currentFilter: Boolean? = null
-    private var sortByDate = false
+    private var sortByDate: Boolean = false
 
-    init {
-        applyFilters()
+    private fun apply() {
+        var result = _allTasks.value
+
+        currentFilter?.let { done ->
+            result = result.filter { it.done == done }
+        }
+
+        if (sortByDate) {
+            result = result.sortedBy { it.dueDate }
+        }
+
+        _tasks.value = result
     }
 
-    // ========================
-    // CRUD
-    // ========================
+    fun showAll() {
+        currentFilter = null
+        apply()
+    }
+
+    fun filterByDone(done: Boolean) {
+        currentFilter = done
+        apply()
+    }
+
+    fun sortByDueDate() {
+        sortByDate = true
+        apply()
+    }
+
+    fun clearSort() {
+        sortByDate = false
+        apply()
+    }
 
     fun addTask(title: String) {
+        val newId = (_allTasks.value.maxOfOrNull { it.id } ?: 0) + 1
         val newTask = Task(
-            id = (allTasks.value.maxOfOrNull { it.id } ?: 0) + 1,
+            id = newId,
             title = title,
             description = "",
             priority = 1,
@@ -36,59 +65,26 @@ class TaskViewModel : ViewModel() {
             done = false
         )
 
-        allTasks.value = allTasks.value + newTask
-        applyFilters()
+        _allTasks.value = _allTasks.value + newTask
+        apply()
     }
 
     fun toggleDone(id: Int) {
-        allTasks.value = allTasks.value.map {
+        _allTasks.value = _allTasks.value.map {
             if (it.id == id) it.copy(done = !it.done) else it
         }
-        applyFilters()
+        apply()
     }
 
     fun removeTask(id: Int) {
-        allTasks.value = allTasks.value.filterNot { it.id == id }
-        applyFilters()
+        _allTasks.value = _allTasks.value.filterNot { it.id == id }
+        apply()
     }
 
-    // ========================
-    // FILTER & SORT
-    // ========================
-
-    fun filterByDone(done: Boolean) {
-        currentFilter = done
-        applyFilters()
-    }
-
-    fun showAll() {
-        currentFilter = null
-        applyFilters()
-    }
-
-    fun sortByDueDate() {
-        sortByDate = true
-        applyFilters()
-    }
-
-    // ========================
-    // MAGIC
-    // ========================
-
-    private fun applyFilters() {
-
-        var result = allTasks.value
-
-        // filter
-        currentFilter?.let { done ->
-            result = result.filter { it.done == done }
+    fun updateTask(updated: Task) {
+        _allTasks.value = _allTasks.value.map {
+            if (it.id == updated.id) updated else it
         }
-
-        // sort
-        if (sortByDate) {
-            result = result.sortedBy { it.dueDate }
-        }
-
-        tasks.value = result
+        apply()
     }
 }

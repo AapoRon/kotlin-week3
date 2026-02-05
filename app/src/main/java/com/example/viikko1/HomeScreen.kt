@@ -13,134 +13,107 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import com.example.viikko1.domain.Task
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    taskViewModel: TaskViewModel = viewModel()
+    navController: NavController,
+    taskViewModel: TaskViewModel
 ) {
+    val tasks by taskViewModel.tasks.collectAsState()
 
-    val tasks: List<Task> = taskViewModel.tasks.value
-
-    var newTaskTitle by remember { mutableStateOf("") }
+    var showAddDialog by remember { mutableStateOf(false) }
     var selectedTask by remember { mutableStateOf<Task?>(null) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-
-        Text(
-            text = "Tehtävälista",
-            style = MaterialTheme.typography.headlineMedium
-        )
-
-        Spacer(Modifier.height(16.dp))
-
-        // ➕ Lisää task
-        TextField(
-            value = newTaskTitle,
-            onValueChange = { newTaskTitle = it },
-            label = { Text("Uusi tehtävä") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        Button(
-            onClick = {
-                if (newTaskTitle.isNotBlank()) {
-                    taskViewModel.addTask(newTaskTitle)
-                    newTaskTitle = ""
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Lisää tehtävä")
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // 🔘 Filternapit
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-
-            Button(onClick = { taskViewModel.showAll() }) {
-                Text("Kaikki")
-            }
-
-            Button(onClick = { taskViewModel.filterByDone(false) }) {
-                Text("Tekemättömät")
-            }
-
-            Button(onClick = { taskViewModel.filterByDone(true) }) {
-                Text("Tehdyt")
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        Button(
-            onClick = { taskViewModel.sortByDueDate() },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Järjestä deadline mukaan")
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // 📋 Lista
-        LazyColumn {
-
-            items(tasks) { task ->
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-
-                    Row {
-                        Checkbox(
-                            checked = task.done,
-                            onCheckedChange = {
-                                taskViewModel.toggleDone(task.id)
-                            }
-                        )
-
-                        Spacer(Modifier.width(8.dp))
-
-                        Text(task.title)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Tehtävät") },
+                actions = {
+                    TextButton(onClick = { navController.navigate(ROUTE_CALENDAR) }) {
+                        Text("Kalenteri")
                     }
+                    TextButton(onClick = { navController.navigate(ROUTE_SETTINGS) }) {
+                        Text("Asetukset")
+                    }
+                }
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { showAddDialog = true }) {
+                Text("+")
+            }
+        }
+    ) { padding ->
 
-                    Row {
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .padding(16.dp)
+                .fillMaxSize()
+        ) {
 
-                        TextButton(onClick = {
-                            selectedTask = task
-                        }) {
-                            Text("Edit")
+            // Filtterit
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Button(onClick = { taskViewModel.showAll() }) { Text("Kaikki") }
+                Button(onClick = { taskViewModel.filterByDone(false) }) { Text("Tekemättömät") }
+                Button(onClick = { taskViewModel.filterByDone(true) }) { Text("Tehdyt") }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Sort
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Button(onClick = { taskViewModel.sortByDueDate() }) { Text("Sort") }
+                Button(onClick = { taskViewModel.clearSort() }) { Text("Sort off") }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Lista
+            LazyColumn {
+                items(tasks) { task ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+
+                        Row {
+                            Checkbox(
+                                checked = task.done,
+                                onCheckedChange = { taskViewModel.toggleDone(task.id) }
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(task.title)
                         }
 
-                        TextButton(onClick = {
-                            taskViewModel.removeTask(task.id)
-                        }) {
-                            Text("Poista")
+                        Row {
+                            TextButton(onClick = { selectedTask = task }) { Text("Edit") }
+                            TextButton(onClick = { taskViewModel.removeTask(task.id) }) { Text("Poista") }
                         }
                     }
                 }
@@ -148,15 +121,24 @@ fun HomeScreen(
         }
     }
 
-    // 🔵 Detail dialog
-    selectedTask?.let { task ->
+    // ➕ Add dialog
+    if (showAddDialog) {
+        AddTaskDialog(
+            onDismiss = { showAddDialog = false },
+            onSave = { title ->
+                taskViewModel.addTask(title)
+                showAddDialog = false
+            }
+        )
+    }
 
-        DetailDialog(
+    // ✏️ Edit dialog
+    selectedTask?.let { task ->
+        EditTaskDialog(
             task = task,
             onDismiss = { selectedTask = null },
-            onSave = { newTitle ->
-                taskViewModel.removeTask(task.id)
-                taskViewModel.addTask(newTitle)
+            onSave = { updated ->
+                taskViewModel.updateTask(updated)
                 selectedTask = null
             },
             onDelete = {
